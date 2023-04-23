@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <title>étiquettes v0.12</title>
+    <script src="https://unpkg.com/jspdf@latest/dist/jspdf.umd.min.js"></script>
+    <style>
+      *{
+	  box-sizing: border-box;
+	  margin:0;
+	  padding:0;
+      }
+      #input_panel {
+      display:inline-block;
+      width:30%;
+      height:100vh;
+
+      }
+      body{
+            
+      }
+      #src {
+      width: 100%;
+      height:100%;
+      font-size: 15pt;
+      padding: 10px;
+      }
+      #pdf-020 {
+	  width:35%;
+	  height:100vh;
+	  border: 5px solid #EEEEEE;
+      }
+      #pdf-030 {
+	  width:35%;
+	  height:100vh;
+	  border: 5px solid #FF4B1A;
+      }
+   
+    </style>
+<script>
+
+
+function ISODateString(d) {
+    function pad(n) {return n<10 ? '0'+n : n}
+    return d.getUTCFullYear()+'-'
+         + pad(d.getUTCMonth()+1)+'-'
+        + pad(d.getUTCDate());
+}
+var default_date = ISODateString(new Date());
+
+var emptySlots = new Set();
+
+
+
+const p = new URLSearchParams(window.location.search);
+  const k = p.get("k") || "";
+const b = p.get("b") || "";
+
+
+
+
+function empty(start, end = start+1){
+
+    for(var i = start; i<end; i++)
+	emptySlots.add(i);
+}
+
+const page_opts = {
+    orientation: 'p',
+    unit: 'mm',
+    format: 'a4',
+    putOnlyUsedFonts:true,
+};
+    
+
+
+
+// config
+
+
+
+const type4_label ={w_start: 4.8,  w:99.1, w_step: 101, w_count: 2,
+          h_start: 15, h:38.1, h_step: 38.1, h_count: 7}
+ 
+ 
+const global_config = {
+    debug_rect: true,
+    fringe_context: true,
+    alphanumeric_sort: true,
+    fmt: type4_label,
+}
+ 
+ 
+ 
+// --------------------------------------------------
+function sizeOrFitWidth(doc, size, max_width, str){
+    doc.setFontSize(size);
+    ref_width = doc.getTextWidth(label.ref);
+    if(ref_width > max_width){
+	let ratio = doc.getFontSize() / ref_width;
+	let fit_size = max_width * ratio;
+	doc.setFontSize(fit_size);
+    }
+}
+
+ 
+function printLabel (doc, slot, label, config){
+    if(config.debug_rect){
+        doc.setDrawColor("#DDDDDD");
+        doc.roundedRect(slot.top_left_x, slot.top_left_y, slot.width, slot.height, 2, 2);
+    }
+
+    if(label.bernard && label.sn && label.cert){
+	let lh = 6.5;
+
+	let y = slot.top_left_y + 0;
+	let x = slot.top_left_x + 5;
+	let l = 1;
+	doc.setFont("Helvetica", "normal"); doc.setFontSize(15);
+	doc.text("Article "+b+":", x, y +  lh * (l++));
+	doc.text("Réf. "+k+":", x, y +  lh * (l++));
+	doc.text("No série:", x, y +   lh * (l++));
+	doc.text("No certificat:", x, y +  lh * (l++));
+	doc.text("Commande "+b+":", x, y +  lh * (l++));
+	l = 1;
+	x+= 50;
+	doc.setFont("Helvetica", "bold"); doc.setFontSize(15);
+	doc.text(label.bernard, x, y +  lh * (l++));
+	doc.text(label.ref, x, y +  lh * (l++));
+	doc.text(label.sn, x, y +   lh * (l++));
+	doc.text(label.cert, x, y +  lh * (l++));
+	
+    }
+    else if(label.nop){}
+    else{
+	
+
+        
+	doc.setFont("Helvetica", "normal"); sizeOrFitWidth(doc, 60, 0.95 * slot.width, label.ref);
+	doc.text(label.ref, slot.middle_x, slot.top_left_y + slot.height/2.2, {align:"center", baseline:"middle"});
+        
+	doc.setFont("Helvetica", "normal"); doc.setFontSize(15);
+	doc.text(label.date, slot.top_left_x + 3, slot.top_left_y + slot.height - 3);
+	
+	if(label.sn){
+	    doc.setFont("Helvetica", "normal"); doc.setFontSize(15);
+            doc.text("n° série: "+label.sn, slot.top_left_x + slot.width - 3, slot.top_left_y + slot.height - 3, {align:"right"});
+	}
+	if(label.box){
+	    doc.setFont("Helvetica", "normal"); doc.setFontSize(15);
+            doc.text("Qté:       "+label.box, slot.top_left_x + slot.width - 3, slot.top_left_y + slot.height - 3, {align:"right"});   
+	}
+    }
+    
+    
+    if(config.fringe_context){
+ 
+        let x = null;
+        let opts = {align: "center"};
+        let y = slot.top_left_y + slot.height/2;
+        if(slot.col == 0){ // left col
+            x = 3;
+            opts.align = "left";
+            opts.angle = 90;
+ 
+        }
+        if(slot.col == 1){ //right col
+            x = 210;
+            opts.align = "right"; 
+            opts.angle = -90;
+        }
+        doc.setFontSize(7);
+        multi_indicator = "";
+        if(label.unique == false) multi_indicator = "*";
+        doc.text("p"+label.page_bl+multi_indicator, x, y, opts)
+    }
+        
+}
+ 
+ 
+ 
+ 
+ 
+ 
+function create_slot_iterator(fmt){
+    let iter = {
+	index: -1,
+	page: null,
+	col: null,
+	top_left_x: null,
+	top_left_y: null,
+	middle_x: null,
+	width: fmt.w,
+	height: fmt.h,
+
+	_next: function(){
+	    label_per_page = fmt.w_count * fmt.h_count;
+ 
+            this.index+=1;
+            this.page = Math.floor(this.index / label_per_page) + 1;
+            this.col = (this.index % 2);
+            this.line = Math.floor(this.index / 2) % fmt.h_count;
+	    
+            this.top_left_x = fmt.w_start + (fmt.w_step * (this.col));
+            this.top_left_y = fmt.h_start + (fmt.h_step * (this.line));
+            this.middle_x = this.top_left_x + this.width / 2;
+	},
+    next: function(){
+        do {this._next();}
+        while (emptySlots.has(this.page * 100 + this.line * 10 +  this.col))
+        
+        const ret = Object.assign({}, this);
+        delete ret.next;
+        return ret;
+    }
+    }
+    return iter;
+}
+
+function read_src(src){
+    
+    
+    let data = {
+	src: src,
+	decls: [],
+	refs_count: {}
+    };
+    let current_ctx = {date_str: null, page_bl_str: null};
+    const lines = src.split("\n").map(x => x.trim());
+    
+    let line_number = 1;
+    let match = null;
+    let took = false;
+    
+    for(const current_line of lines){
+	
+	obj = {};
+	took = false;
+	
+	match = current_line.match("^-- date ([0-9-/]+)$");
+	if(!took && match){
+            obj.type = "ctx";
+            obj.subtype = "date";
+            obj.date_str = match[1];
+            obj.src = {line:line_number};
+            current_ctx.date_str = obj.date_str;
+            data.decls.push(obj);
+            took = true;
+	}
+	
+	
+	match = current_line.match("(^[0-9]+)[ \t]+([^/]+)( +/.*)?$");
+	if(!took && match){
+            obj.type = "label";
+
+            obj.qty = parseInt(match[1]);
+            obj.qty_str = match[1];
+            obj.ref = match[2];
+            if(match[3]){
+		let var_regex = / +([a-z]+): *([^ ]+)/g;
+		let m = null;
+		while(m = var_regex.exec(match[3])){
+		    obj[m[1]] = m[2];
+		}
+		
+            }
+	    
+            if(data.refs_count[obj.ref] == undefined)
+		data.refs_count[obj.ref] = 1;
+            else
+		data.refs_count[obj.ref] += 1;
+
+	    
+	    
+            obj.date = current_ctx.date_str || default_date;
+            obj.page_bl = current_ctx.page_bl_str || "-";
+            obj.src = {line:line_number};
+            data.decls.push(obj);
+            took = true;
+	}
+	
+	match = current_line.match("^-- p([0-9]+)$");
+	if(!took && match){
+            obj.type = "ctx";
+            obj.subtype = "page_bl"
+            obj.page_bl_str = match[1];
+            obj.src = {line:line_number};
+            current_ctx.page_bl_str = obj.page_bl_str;
+            data.decls.push(obj);
+            took = true
+	}
+	
+	line_number++;
+    }
+    
+    
+    
+    return data;
+}
+ 
+function create_label_iterator(data, config){
+    let ret = {
+    labels: [],
+    index: -1,
+    next: function(){
+        this.index += 1;
+        
+        label = this.labels[this.index];
+        if(ret == undefined) return null;
+        return label;
+    }
+    };
+ 
+ 
+    labels = data.decls.filter(x => x.type == "label");
+    if(config.alphanumeric_sort)
+    labels.sort((a, b) => {
+        return a.ref.localeCompare(b.ref, undefined, {numeric: true, sensitivity: 'base'});
+    });
+    
+    for(o of labels){
+    if(o.type == "label" && !o.nop){
+        let has_sn = (o.sn != undefined);
+        let sn = null;
+        if(has_sn)
+        sn = parseInt(o.sn);
+ 
+	//      if(o.sn != undefined) sn = parseInt(o.sn);
+	if(o.box) o.qty /= o.box;
+        for(var count = 0; count < o.qty; count++) {
+        o = Object.assign({}, o);
+        if(has_sn) o.sn = ""+sn;
+        if(data.refs_count[o.ref] && data.refs_count[o.ref] > 1) o.unique = false;
+        ret.labels.push(o);
+        if(has_sn) sn++;
+        
+        };
+    }
+    else continue;
+    }
+    return ret;
+}
+ 
+
+
+
+
+  function createOutput(data, config, file_name){
+    let doc = new jspdf.jsPDF(page_opts);
+
+    var slot_iter = create_slot_iterator(config.fmt);
+    var label_iter = create_label_iterator(data, config);
+
+    let label = null;
+    let slot = null;
+    let new_page_needed = false;
+    let last_page = 1;
+    while((label = label_iter.next())){
+	slot = slot_iter.next();
+	if(slot.page != last_page) new_page_needed = true;
+	if(new_page_needed){
+            console.log("-> Nouvelle page")
+            doc.addPage(page_opts);
+            new_page_needed = false;
+	}
+	
+        printLabel(doc, slot, label, config);
+	last_page = slot.page;
+    }
+    const doc_data = doc.output("datauristring", {filename: file_name});
+    return doc_data;
+}
+
+function main(src){
+    let source = document.getElementById("src").value;
+    let data = read_src(source);
+
+    let data_020 = JSON.parse(JSON.stringify(data));
+    let data_030 = JSON.parse(JSON.stringify(data));
+
+    data_020.decls = data_020.decls.filter(obj => (obj.ref && !obj.ref.match("\[-F].3")));
+    data_030.decls = data_030.decls.filter(obj => (obj.ref && obj.ref.match("\[-F].3")));
+
+  
+    
+
+    let out = null;
+
+
+    out = createOutput(data_020, global_config, "étiquettes-020.pdf");
+    let preview_020 = document.getElementById("pdf-020")
+    preview_020.setAttribute("src", out);
+
+
+    out = createOutput(data_030, global_config, "étiquettes-030.pdf");
+    let preview_030 = document.getElementById("pdf-030")
+    preview_030.setAttribute("src", out);
+
+}
+ 
+ 
+const example_src = `\
+-- date 2032-04-20
+-- p1
+10	78-900 / box: 2
+5	6546-3546 / bernard: 68791e sn: 56516 cert: 6456
+
+-- p2
+10	A468D-T308 / box: 5	
+5	A468D08
+`;
+
+function loadExample() {
+    let src = document.getElementById("src").value = example_src;
+}
+
+
+window.onload = function() {
+    //main();
+};
+ 
+
+      
+    </script>
+  </head>
+  <body>
+    <iframe id="pdf-020"></iframe><div id="input_panel"><div id="buttons">
+	<button onclick="global_config.debug_rect = true; main()">Aperçu</button>
+	<button onclick="global_config.debug_rect = false; main()">Impression</button>
+	<button onclick="loadExample()">Exemple</button>
+	
+      </div><textarea id="src"></textarea></div><iframe id="pdf-030"></iframe>
+    <!-- <a href="javascript:go()">Ok</a> -->
+    <!-- page content -->
+  </body>
+</html>
