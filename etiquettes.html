@@ -378,7 +378,7 @@ function main(src){
     let data_020 = JSON.parse(JSON.stringify(data));
     let data_030 = JSON.parse(JSON.stringify(data));
 
-    let regex = "^[0-9]+[-FSP].3";
+    let regex = "^[0-9]+[-FS][0-9P]3";
     data_020.decls = data_020.decls.filter(obj => (obj.ref && !obj.ref.match(regex)));
     data_030.decls = data_030.decls.filter(obj => (obj.ref && obj.ref.match(regex)));
 
